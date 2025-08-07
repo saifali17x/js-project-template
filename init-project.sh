@@ -1,30 +1,51 @@
 #!/bin/bash
 
-# === SETTINGS ===
-TEMPLATE_DIR="$HOME/repos/js-project-template"
-DEST_DIR="$HOME/repos"
+# Exit immediately on errors
+set -e
 
-# === INPUT ===
-read -p "Enter new project name: " PROJECT_NAME
-PROJECT_PATH="$DEST_DIR/$PROJECT_NAME"
-
-# === CREATE GITHUB REPO ===
-echo "🚀 Creating GitHub repo '$PROJECT_NAME'..."
-gh repo create "$PROJECT_NAME" --private --confirm
-
-# === COPY TEMPLATE ===
-echo "📁 Copying template into project folder..."
-mkdir -p "$PROJECT_PATH"
-cp -r "$TEMPLATE_DIR"/. "$PROJECT_PATH"
-
-# === INIT GIT ===
-cd "$PROJECT_PATH" || exit
+# 1. Delete previous .git folder
+echo "🗑️ Removing existing .git directory..."
 rm -rf .git
+
+# 2. Prompt for new project name
+read -p "📝 Enter new project name: " project_name
+
+# 3. Prompt for new GitHub SSH URL
+read -p "🔗 Enter new GitHub SSH repo SSH URL: " ssh_url
+
+# 4. Update package.json name and repository URL (if package.json exists)
+if [ -f "package.json" ]; then
+    echo "🛠️ Updating package.json..."
+
+    # Change "name": "old-name" to "name": "new-project-name"
+    sed -i "s/\"name\":\s*\"[^\"]*\"/\"name\": \"$project_name\"/" package.json
+
+    # Check if "repository" field exists
+    if grep -q '"repository"' package.json; then
+        # Update the existing "url" field under "repository"
+        sed -i "s|\"url\":\s*\"[^\"]*\"|\"url\": \"$ssh_url\"|" package.json
+    else
+        # Insert repository field (after the first { )
+        sed -i "0,/^{/{s/{/{\n  \"repository\": { \"type\": \"git\", \"url\": \"$ssh_url\" },/}" package.json
+    fi
+fi
+
+# 5. Initialize Git
+echo "🔃 Initializing new Git repo..."
 git init
+git remote add origin "$ssh_url"
+
+# 6. Install dependencies if package.json exists
+if [ -f "package.json" ]; then
+    echo "📦 Running npm install..."
+    npm install
+fi
+
+# 7. Make initial commit and force push
+echo "✅ Making initial commit..."
 git add .
 git commit -m "Initial commit from template"
 git branch -M main
-git remote add origin "git@github.com:seezyxd/$PROJECT_NAME.git"
 git push -u origin main --force
 
-echo "✅ Project '$PROJECT_NAME' created successfully at $PROJECT_PATH"
+echo "🚀 Project '$project_name' is ready and pushed to '$ssh_url'"
